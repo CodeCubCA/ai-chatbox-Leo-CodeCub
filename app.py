@@ -8,7 +8,7 @@ load_dotenv()
 
 # Configure Streamlit page
 st.set_page_config(
-    page_title="My Gaming AI assistant",
+    page_title="Gaming Assistant: Sigma Version",
     page_icon="🎮",
     layout="wide"
 )
@@ -59,7 +59,7 @@ if not st.session_state.messages:
     ]
 
 # App title and description
-st.title("🎮 My Gaming AI assistant")
+st.title("🎮 Gaming Assistant: Sigma Version")
 st.markdown("### 🎯 Welcome to Your Personal Gaming AI!")
 st.markdown("""🌟 **What I can do for you:**
 - 🎲 **Game Recommendations**: Find your next favorite game based on your preferences
