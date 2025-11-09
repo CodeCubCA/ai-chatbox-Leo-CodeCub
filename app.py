@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-from groq import Groq
+import google.generativeai as genai
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -13,21 +13,22 @@ st.set_page_config(
     layout="wide"
 )
 
-# Initialize Groq client
+# Initialize Gemini client
 @st.cache_resource
-def init_groq_client():
-    api_key = os.getenv("GROQ_API_KEY")
+def init_gemini_client():
+    api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        st.error("GROQ_API_KEY not found. Please set it in your .env file.")
+        st.error("GEMINI_API_KEY not found. Please set it in your .env file.")
         st.stop()
     try:
-        return Groq(api_key=api_key)
+        genai.configure(api_key=api_key)
+        return genai.GenerativeModel('gemini-2.5-flash')
     except Exception as e:
-        st.error(f"Error initializing Groq client: {str(e)}")
-        st.info("Please check your Groq library version and API key.")
+        st.error(f"Error initializing Gemini client: {str(e)}")
+        st.info("Please check your google-generativeai library version and API key.")
         st.stop()
 
-client = init_groq_client()
+model = init_gemini_client()
 
 # Initialize session state
 if "messages" not in st.session_state:
@@ -109,6 +110,8 @@ with st.sidebar:
     - 🎮 Console (PS5, Xbox, Switch)
     - 📱 Mobile Gaming (iOS/Android)
     - 🕹️ Retro Gaming (Classic consoles)
+
+    🤖 **AI Model:** Google Gemini 2.5 Flash
     """)
 
     st.header("⚙️ Settings")
@@ -151,20 +154,38 @@ if prompt := st.chat_input(placeholders.get(st.session_state.personality, "Ask m
                     "Humorous": 0.9
                 }
 
-                # Call Groq API
-                response = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=st.session_state.messages,
-                    temperature=temp_settings.get(st.session_state.personality, 0.7),
-                    max_tokens=1000,
-                    stream=False
+                # Prepare chat history for Gemini (exclude system message, convert format)
+                chat_history = []
+                for msg in st.session_state.messages[1:-1]:  # Skip system message and current user message
+                    if msg["role"] == "user":
+                        chat_history.append({"role": "user", "parts": [msg["content"]]})
+                    elif msg["role"] == "assistant":
+                        chat_history.append({"role": "model", "parts": [msg["content"]]})
+
+                # Start chat with history
+                chat = model.start_chat(history=chat_history)
+
+                # Create the full prompt with system message
+                system_msg = st.session_state.messages[0]["content"]
+                full_prompt = f"{system_msg}\n\nUser: {prompt}"
+
+                # Call Gemini API with streaming
+                response = chat.send_message(
+                    full_prompt,
+                    generation_config=genai.types.GenerationConfig(
+                        temperature=temp_settings.get(st.session_state.personality, 0.7),
+                        max_output_tokens=1000,
+                    ),
+                    stream=True
                 )
 
-                # Get response content
-                assistant_response = response.choices[0].message.content
-
-                # Display response
-                st.markdown(assistant_response)
+                # Stream response
+                assistant_response = ""
+                response_placeholder = st.empty()
+                for chunk in response:
+                    if chunk.text:
+                        assistant_response += chunk.text
+                        response_placeholder.markdown(assistant_response)
 
                 # Add assistant response to chat history
                 st.session_state.messages.append({
@@ -174,7 +195,7 @@ if prompt := st.chat_input(placeholders.get(st.session_state.personality, "Ask m
 
             except Exception as e:
                 st.error(f"Error: {str(e)}")
-                st.info("Please check your GROQ_API_KEY and internet connection.")
+                st.info("Please check your GEMINI_API_KEY and internet connection.")
 
 # Footer with personality-based tips
 st.markdown("---")
